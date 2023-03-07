@@ -10,6 +10,10 @@ class ReshootException(Exception):  # выстрел в точку в котор
     pass
 
 
+class ShipAssignment(Exception):  # не удалось расставить корабли на доску
+    pass
+
+
 # Класс точек
 class Dot:
     def __init__(self, x, y):
