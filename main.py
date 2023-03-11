@@ -79,8 +79,8 @@ class Board:
         """
         contour = []
         for dot in ship.dots():
-            for i in range(dot.x-1, dot.x+2):
-                for j in range(dot.y-1, dot.y+2):
+            for i in range(dot.x - 1, dot.x + 2):
+                for j in range(dot.y - 1, dot.y + 2):
                     if self.out(Dot(i, j)):
                         continue
                     if hide and self.board[i][j] == "■":
@@ -136,6 +136,40 @@ class Board:
                     return False
                 return True
         return False
+
+
+class Player:
+    def __init__(self):
+        self.own_board = Board()
+        self.enemy_board = Board(hid=True)
+
+    def ask(self):
+        """
+        Метод, который «спрашивает» игрока, в какую клетку он делает выстрел.
+        Пока мы делаем общий для AI и пользователя класс, этот метод мы описать не можем.
+        Оставим этот метод пустым. Тем самым обозначим, что потомки должны реализовать этот метод.
+        """
+        pass
+
+    def move(self):
+        """
+        Метод, который делает ход в игре.
+        Тут мы вызываем метод ask, делаем выстрел по вражеской доске (метод Board.shot),
+        отлавливаем исключения, и если они есть, пытаемся повторить ход. Метод должен возвращать True,
+        если этому игроку нужен повторный ход (например если он выстрелом подбил корабль).
+        """
+        while True:
+            try:
+                target = self.ask()
+                shot = self.enemy_board.shot(target)
+                print(target)
+                if shot:
+                    return True
+                else:
+                    return False
+            except (BoardOutException, ReshootException) as e:
+                print(e)
+                return True
 
 
 
