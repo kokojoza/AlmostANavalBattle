@@ -1,4 +1,4 @@
-"""Морской бой с авто расстановкой кораблей"""
+import random
 
 
 # Классы исключений
@@ -37,6 +37,7 @@ class Ship:
         self.horizontal = horizontal  # если горизонтально то True, нет False
         self.health = length  # кол-во жизней, изначально равно длине корабля
 
+
     def dots(self):
         """
         Метод возвращает список всех точек корабля.
@@ -44,9 +45,9 @@ class Ship:
         dots = []
         for i in range(self.length):
             if self.horizontal:
-                dot = (self.start_point[0], self.start_point[1] + i)
+                dot = Dot(self.start_point.x, self.start_point.y + i)
             else:
-                dot = (self.start_point[0] + i, self.start_point[1])
+                dot = Dot(self.start_point.x + i, self.start_point.y)
             dots.append(dot)
         return dots
 
@@ -58,21 +59,22 @@ class Board:
         self.size = size
         self.hid = hid
         self.live_ships = 0
+        self.all_contour = []
 
     def add_ship(self, ship):
         """
         Метод add_ship, который ставит корабль на доску (если ставить не получается, выбрасываем исключения)
         """
         for dot in ship.dots():
-            if self.out(dot) or dot in self.contour(ship):
+            if self.out(dot) or dot in self.all_contour:
                 raise ShipAssignment("Не удалось поставить корабль на доску")
         for dot in ship.dots():
-            x, y = dot.x, dot.y
-            self.board[x][y] = "■"
+            self.board[dot.x][dot.y] = "■"
         self.list_ships.append(ship)
         self.live_ships += 1
+        self.all_contour.extend(self.contour(ship))
 
-    def contour(self, ship, hide=False):
+    def contour(self, ship):
         """
         Метод contour, который обводит корабль по контуру. Он будет полезен и в ходе самой игры,
         и в при расстановке кораблей (помечает соседние точки, где корабля по правилам быть не может).
@@ -81,10 +83,9 @@ class Board:
         for dot in ship.dots():
             for i in range(dot.x - 1, dot.x + 2):
                 for j in range(dot.y - 1, dot.y + 2):
-                    if self.out(Dot(i, j)):
+                    if self.out(Dot(i, j)) or Dot(i, j) in ship.dots():
                         continue
-                    if hide and self.board[i][j] == "■":
-                        continue
+
                     contour.append(Dot(i, j))
         return contour
 
@@ -120,28 +121,33 @@ class Board:
         if self.out(dot):
             raise BoardOutException("Стреляете мимо доски!")
 
-        if self.board[dot.x][dot.y] != "◯":
+        if self.board[dot.x][dot.y] in ['T', 'X']:
             raise ReshootException("Вы уже стреляли сюда!")
 
-        self.board[dot.x][dot.y] = "T" if self.board[dot.x][dot.y] == '◯' else 'X'
+        # self.board[dot.x][dot.y] = "T" if self.board[dot.x][dot.y] == '◯' else 'X'
 
-        for ship in self.list_ships:
-            if dot in ship.dots():
-                ship.lives -= 1
-                if ship.lives == 0:
-                    self.live_ships -= 1
-                    for d in self.contour(ship, hide=True):
-                        x, y = d.x, d.y
-                        self.board[x][y] = 'T'
-                    return False
-                return True
-        return False
+        if self.board[dot.x][dot.y] == '◯':
+            self.board[dot.x][dot.y] = "T"
+            print('Мимо')
+            return False
+        else:
+            self.board[dot.x][dot.y] = "X"
+            for ship in self.list_ships:
+                if dot in ship.dots():
+                    ship.health -= 1
+                    print('Ранил')
+                    if ship.health == 0:
+                        self.live_ships -= 1
+                        print('Убил')
+                        for d in self.contour(ship):
+                            self.board[d.x][d.y] = 'T'
+                    return True
 
 
 class Player:
-    def __init__(self):
-        self.own_board = Board()
-        self.enemy_board = Board(hid=True)
+    def __init__(self, own_board, enemy_board):
+        self.own_board = own_board
+        self.enemy_board = enemy_board
 
     def ask(self):
         """
@@ -160,19 +166,106 @@ class Player:
         """
         while True:
             try:
-                target = self.ask()
-                shot = self.enemy_board.shot(target)
-                print(target)
-                if shot:
-                    return True
-                else:
-                    return False
+                shot = self.enemy_board.shot(self.ask())
+                return shot
             except (BoardOutException, ReshootException) as e:
                 print(e)
-                return True
 
 
+class AI(Player):
+    def ask(self):
+        x = random.randint(0, self.own_board.size - 1)
+        y = random.randint(0, self.own_board.size - 1)
+        return Dot(x, y)
 
 
-a = Board()
-print(a.out(Dot(1, 5)))
+class User(Player):
+    def ask(self):
+        while True:
+            cords = input("Ваш ход: ").split()
+
+            if len(cords) != 2:
+                print("Нужна 2 числа")
+                continue
+
+            x, y = cords
+
+            if not (x.isdigit() and y.isdigit()):
+                print("Только цифры")
+                continue
+
+            x, y = int(x), int(y)
+
+            return Dot(x - 1, y - 1)
+
+
+class Game:
+    def __init__(self):
+        self.board_ai = self.random_board()
+        self.board_user = self.random_board()
+        self.board_ai.hid = True
+        self.player_user = User(self.board_user, self.board_ai)
+        self.player_ai = AI(self.board_ai, self.board_user)
+
+    def random_board(self):
+        board = Board()
+        ships = [(1, 3), (2, 2), (4, 1)]
+        for ship in ships:
+            for _ in range(ship[0]):
+                while True:
+                    try:
+                        start_point = Dot(random.randint(0, board.size), random.randint(0, board.size))
+                        sh = Ship(ship[1], start_point, random.randint(0, 1))
+                        board.add_ship(sh)
+                        break
+                    except ShipAssignment:
+                        pass
+            if board.live_ships == 0:
+                break
+        return board
+
+    def greet(self):
+        print("Добро пожаловать в игру Морской бой!")
+        print("Координаты задаются в формате 'x y', где x - цифра (1-6), y - цифра (1-6)")
+        print("Например, '1 1' - координаты левой верхней клетки игрового поля")
+
+    def loop(self):
+        num = 0
+        while True:
+            print("-" * 25)
+            print("Доска игрока:")
+            print("-" * 25)
+            self.board_user.show_board()
+            print("-" * 25)
+            print("Доска врага:")
+            print("-" * 25)
+            self.board_ai.show_board()
+            print("-" * 25)
+
+            if num % 2 == 0:
+                print("Ходит пользователь!")
+                repeat = self.player_user.move()
+            else:
+                print("Ходит компьютер!")
+                repeat = self.player_ai.move()
+            if repeat:
+                num -= 1
+
+            if self.board_ai.live_ships == 0:
+                print("Вы победили!")
+                break
+
+            if self.board_user.live_ships == 0:
+                print("Компьютер победил!")
+                break
+
+            num += 1
+
+    def start(self):
+        self.greet()
+        self.loop()
+
+
+if __name__ == '__main__':
+    g = Game()
+    g.start()
