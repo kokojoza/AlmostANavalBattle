@@ -37,7 +37,6 @@ class Ship:
         self.horizontal = horizontal  # если горизонтально то True, нет False
         self.health = length  # кол-во жизней, изначально равно длине корабля
 
-
     def dots(self):
         """
         Метод возвращает список всех точек корабля.
@@ -66,10 +65,12 @@ class Board:
         Метод add_ship, который ставит корабль на доску (если ставить не получается, выбрасываем исключения)
         """
         for dot in ship.dots():
-            if self.out(dot) or dot in self.all_contour:
+            if self.out(dot) or dot in self.all_contour or self.board[dot.x][dot.y] == "■":
                 raise ShipAssignment("Не удалось поставить корабль на доску")
+
         for dot in ship.dots():
             self.board[dot.x][dot.y] = "■"
+
         self.list_ships.append(ship)
         self.live_ships += 1
         self.all_contour.extend(self.contour(ship))
@@ -101,7 +102,7 @@ class Board:
                 row += str(i + 1) + " | "
                 for j in range(self.size):
                     if self.hid and self.board[i][j] == "■":
-                        row += "■ | "
+                        row += "◯ | "
                     else:
                         row += f"{self.board[i][j]} | "
                 print(row)
@@ -124,24 +125,22 @@ class Board:
         if self.board[dot.x][dot.y] in ['T', 'X']:
             raise ReshootException("Вы уже стреляли сюда!")
 
-        # self.board[dot.x][dot.y] = "T" if self.board[dot.x][dot.y] == '◯' else 'X'
-
         if self.board[dot.x][dot.y] == '◯':
             self.board[dot.x][dot.y] = "T"
             print('Мимо')
             return False
-        else:
-            self.board[dot.x][dot.y] = "X"
-            for ship in self.list_ships:
-                if dot in ship.dots():
-                    ship.health -= 1
-                    print('Ранил')
-                    if ship.health == 0:
-                        self.live_ships -= 1
-                        print('Убил')
-                        for d in self.contour(ship):
-                            self.board[d.x][d.y] = 'T'
-                    return True
+
+        self.board[dot.x][dot.y] = "X"
+        for ship in self.list_ships:
+            if dot in ship.dots():
+                ship.health -= 1
+                print('Ранил')
+                if ship.health == 0:
+                    self.live_ships -= 1
+                    print('Убил')
+                    for d in self.contour(ship):
+                        self.board[d.x][d.y] = 'T'
+                return True
 
 
 class Player:
@@ -211,17 +210,21 @@ class Game:
         board = Board()
         ships = [(1, 3), (2, 2), (4, 1)]
         for ship in ships:
+
             for _ in range(ship[0]):
-                while True:
+                temp = 0
+                while temp < 1000:
                     try:
                         start_point = Dot(random.randint(0, board.size), random.randint(0, board.size))
                         sh = Ship(ship[1], start_point, random.randint(0, 1))
                         board.add_ship(sh)
-                        break
                     except ShipAssignment:
-                        pass
-            if board.live_ships == 0:
-                break
+                        temp += 1
+                    else:
+                        break
+
+        while board.live_ships != 7:
+            self.random_board()
         return board
 
     def greet(self):
